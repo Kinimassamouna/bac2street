@@ -4,8 +4,10 @@ import { motion } from "framer-motion";
 
 const SplashScreen = () => {
   const navigate = useNavigate();
+  //const [play] = useSound("/Audio/beepson.mp3");
 
   useEffect(() => {
+    //play(); // joue le son au montage du composant
     const timer = setTimeout(() => {
       navigate("/home");
     }, 4000); // 4 secondes d'attente
