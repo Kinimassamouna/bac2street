@@ -1,17 +1,17 @@
 {
   "files": {
-    "main.css": "/Kinimassamouna/bac2street/static/css/main.e6c13ad2.css",
-    "main.js": "/Kinimassamouna/bac2street/static/js/main.18e6ef84.js",
-    "static/js/885.71c778dd.chunk.js": "/Kinimassamouna/bac2street/static/js/885.71c778dd.chunk.js",
-    "static/js/453.85b84277.chunk.js": "/Kinimassamouna/bac2street/static/js/453.85b84277.chunk.js",
-    "index.html": "/Kinimassamouna/bac2street/index.html",
-    "main.e6c13ad2.css.map": "/Kinimassamouna/bac2street/static/css/main.e6c13ad2.css.map",
-    "main.18e6ef84.js.map": "/Kinimassamouna/bac2street/static/js/main.18e6ef84.js.map",
-    "885.71c778dd.chunk.js.map": "/Kinimassamouna/bac2street/static/js/885.71c778dd.chunk.js.map",
-    "453.85b84277.chunk.js.map": "/Kinimassamouna/bac2street/static/js/453.85b84277.chunk.js.map"
+    "main.css": "/bac2street/static/css/main.e6c13ad2.css",
+    "main.js": "/bac2street/static/js/main.af09142e.js",
+    "static/js/885.71c778dd.chunk.js": "/bac2street/static/js/885.71c778dd.chunk.js",
+    "static/js/453.85b84277.chunk.js": "/bac2street/static/js/453.85b84277.chunk.js",
+    "index.html": "/bac2street/index.html",
+    "main.e6c13ad2.css.map": "/bac2street/static/css/main.e6c13ad2.css.map",
+    "main.af09142e.js.map": "/bac2street/static/js/main.af09142e.js.map",
+    "885.71c778dd.chunk.js.map": "/bac2street/static/js/885.71c778dd.chunk.js.map",
+    "453.85b84277.chunk.js.map": "/bac2street/static/js/453.85b84277.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.e6c13ad2.css",
-    "static/js/main.18e6ef84.js"
+    "static/js/main.af09142e.js"
   ]
 }
