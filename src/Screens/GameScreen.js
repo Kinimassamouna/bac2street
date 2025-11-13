@@ -1,164 +1,215 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
 import useSound from "use-sound";
+import { doc, onSnapshot, updateDoc, arrayUnion } from "firebase/firestore";
+import { db } from "../FirebaseConfig";
 
 const vowels = ["A", "E", "I", "O", "U", "Y"];
 const consonants = "BCDFGHJKLMNPQRSTVWXZ".split("");
+const TOTAL_ROUNDS = 5;
+const dictionary = ["Paris","Lion","Voiture","Sarah","Netflix","Chien","Banane"];
 
 const GameScreen = () => {
-  const navigate = useNavigate();
+  const { gameId } = useParams();
   const { state } = useLocation();
-  const { players, selectedCategories, mode } = state;
+  const navigate = useNavigate();
+  const { playerName, isHost } = state || {};
 
-  const [currentLetter, setCurrentLetter] = useState("");
+  const [gameData, setGameData] = useState(null);
   const [responses, setResponses] = useState({});
-  const [buzzedPlayers, setBuzzedPlayers] = useState([]);
-  const [timer, setTimer] = useState(20);
   const [playBip] = useSound("/Sons/beep-329314.mp3");
 
-  // Génération d’une lettre aléatoire
+  // 🔄 Mise à jour en temps réel du jeu
   useEffect(() => {
-    const getRandomLetter = () => {
-      let pool = [];
-      if (mode === "voyelles") pool = vowels;
-      else if (mode === "consonnes") pool = consonants;
-      else pool = [...vowels, ...consonants];
-      const randomIndex = Math.floor(Math.random() * pool.length);
-      return pool[randomIndex];
-    };
-    setCurrentLetter(getRandomLetter());
-  }, [mode]);
+    const unsub = onSnapshot(doc(db, "games", gameId), snapshot => {
+      if(snapshot.exists()){
+        setGameData(snapshot.data());
+        setResponses(snapshot.data().responses || {});
+      }
+    });
+    return () => unsub();
+  }, [gameId]);
 
-  // Fonction stable pour gérer le buzz (pour ESLint)
-  const handleBuzz = useCallback((player) => {
-    if (!buzzedPlayers.includes(player)) {
-      setBuzzedPlayers([...buzzedPlayers, player]);
-      playBip();
-    }
-
-    if (buzzedPlayers.length + 1 >= 3) {
-      playBip();
-      setTimeout(() => navigate("/score", { state: { players } }), 1500);
-    }
-  }, [buzzedPlayers, navigate, players, playBip]);
-
-  // Chronomètre
+  // 🔥 Firestore live
   useEffect(() => {
-    if (timer === 0) {
-      handleBuzz(players[0]); // Auto buzz du joueur 1 si le temps finit
+    const unsub = onSnapshot(doc(db,"games",gameId), snapshot => {
+      if(snapshot.exists()){
+        const data = snapshot.data();
+        setGameData(data);
+        setResponses(data.responses || {});
+      }
+    });
+    return () => unsub();
+  }, [gameId]);
+
+  // 🔹 Démarrer un round
+  const startRound = useCallback(async () => {
+    if(!isHost || !gameData) return;
+
+    // Vérifier que tous les joueurs sont là
+    if(gameData.players.length < gameData.numPlayers){
+      alert("⏳ En attente des joueurs...");
       return;
     }
 
-    const interval = setInterval(() => {
-      setTimer((t) => t - 1);
+    const pool = gameData.mode==="voyelles" ? vowels
+               : gameData.mode==="consonnes" ? consonants
+               : [...vowels, ...consonants];
+
+    const randomLetter = pool[Math.floor(Math.random() * pool.length)];
+
+    const newResponses = {};
+    gameData.players.forEach(p => {
+      newResponses[p.name] = {};
+      gameData.selectedCategories.forEach(cat => newResponses[p.name][cat] = "");
+    });
+
+    await updateDoc(doc(db,"games",gameId),{
+      currentLetter: randomLetter,
+      timer: 60,
+      roundEnded: false,
+      buzzedPlayers: [],
+      responses: newResponses,
+      currentRound: (gameData.currentRound || 0) + 1,
+      started: true
+    });
+  }, [gameData, gameId, isHost]);
+
+  // 🔹 Changement de réponse
+  const handleResponseChange = async (category, value) => {
+    const newResponses = {
+      ...responses,
+      [playerName]: {
+        ...(responses[playerName] || {}),
+        [category]: value
+      }
+    };
+    setResponses(newResponses);
+    await updateDoc(doc(db,"games",gameId), { responses: newResponses });
+  };
+
+  // 🔹 Buzz
+  const handleBuzz = async () => {
+    if(gameData.roundEnded || gameData.buzzedPlayers.includes(playerName)) return;
+
+    const newBuzzed = [...gameData.buzzedPlayers, playerName];
+    playBip();
+    const shouldEnd = newBuzzed.length >= Math.ceil(gameData.players.length * 0.75);
+
+    await updateDoc(doc(db,"games",gameId), {
+      buzzedPlayers: newBuzzed,
+      roundEnded: shouldEnd
+    });
+  };
+
+  // 🔹 Timer côté hôte
+  useEffect(() => {
+    if(!isHost || !gameData || gameData.roundEnded || !gameData.started) return;
+
+    const interval = setInterval(async () => {
+      const newTime = (gameData.timer || 60) - 1;
+      if(newTime <= 0){
+        clearInterval(interval);
+        await updateDoc(doc(db,"games",gameId), { timer: 0, roundEnded: true });
+      } else {
+        await updateDoc(doc(db,"games",gameId), { timer: newTime });
+      }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [timer, handleBuzz, players]);
+  }, [isHost, gameData, gameId]);
 
-  const handleResponseChange = (category, value) => {
-    setResponses({ ...responses, [category]: value });
-  };
-
-  const checkSpelling = (word) => {
-    if (!word) return false;
-    if (/\d/.test(word)) return false;
-    if (word.includes("  ")) return false;
+  // 🔹 Vérification orthographique simple
+  const checkSpelling = word => {
+    if(!word) return false;
+    if(/\d/.test(word)) return false;
+    if(word.includes("  ")) return false;
+    if(!dictionary.includes(word)) return false;
     return true;
   };
 
-  const validateRound = () => {
-    let totalPoints = 0;
-    selectedCategories.forEach((cat) => {
-      const answer = responses[cat];
-      if (answer && answer[0]?.toUpperCase() === currentLetter) {
-        totalPoints += checkSpelling(answer) ? 1 : 0;
-      } else if (answer) {
-        totalPoints -= 1;
+  // 🔹 Calcul des points
+  const calculatePoints = useCallback(player => {
+    let total = 0;
+    const letter = gameData?.currentLetter || "";
+    gameData?.selectedCategories?.forEach(cat => {
+      const answer = responses[player]?.[cat];
+      if(answer && answer[0]?.toUpperCase() === letter){
+        total += checkSpelling(answer) ? 1 : 0;
+      } else if(answer){
+        total -= 1;
       }
     });
+    return total;
+  }, [responses, gameData]);
 
-    alert(`Tu as marqué ${totalPoints} points !`);
-    handleBuzz(players[0]);
-  };
+  // 🔹 Fin de round / passage automatique
+  useEffect(() => {
+    if(gameData?.roundEnded){
+      setTimeout(async () => {
+        const pointsByPlayer = {};
+        gameData.players.forEach(p => pointsByPlayer[p.name] = calculatePoints(p.name));
+
+        if((gameData.currentRound || 1) >= TOTAL_ROUNDS){
+          navigate("/score", { state: { players: gameData.players, responses, pointsByPlayer, buzzedPlayers: gameData.buzzedPlayers, currentLetter: gameData.currentLetter } });
+        } else if(isHost){
+          await startRound();
+        }
+      }, 1000);
+    }
+  }, [gameData, calculatePoints, navigate, responses, isHost, startRound]);
 
   return (
-    <div
-      style={{
-        background: "linear-gradient(135deg, #ff007f, #00d4ff)",
-        minHeight: "100vh",
-        padding: "20px",
-        color: "#fff",
-        textAlign: "center",
-      }}
-    >
-      <motion.h1
-        animate={{ scale: [1, 1.2, 1] }}
-        transition={{ duration: 2, repeat: Infinity }}
-      >
-        Lettre : {currentLetter}
-      </motion.h1>
+    <div style={{ background:"linear-gradient(135deg,#ff007f,#00d4ff)", minHeight:"100vh", padding:"20px", color:"#fff", textAlign:"center" }}>
+      {gameData ? (
+        <>
+          <h1>Lettre : {gameData.currentLetter || "?"} (Round {gameData.currentRound || 1}/{TOTAL_ROUNDS})</h1>
+          <h2>Temps restant : {gameData.timer}s</h2>
+          <h2>Joueur : {playerName}</h2>
 
-      <h2>Temps restant : {timer}s</h2>
+          {gameData.selectedCategories.map(cat => (
+            <div key={cat} style={{ marginBottom:"10px" }}>
+              <label>{cat}</label>
+              <input
+                type="text"
+                value={responses[playerName]?.[cat] || ""}
+                onChange={e => handleResponseChange(cat, e.target.value)}
+                style={{ marginLeft:"10px", padding:"8px", borderRadius:"10px", border:"none", outline:"none" }}
+                disabled={gameData.roundEnded}
+              />
+            </div>
+          ))}
 
-      <div style={{ marginTop: "30px" }}>
-        {selectedCategories.map((cat) => (
-          <div key={cat} style={{ marginBottom: "10px" }}>
-            <label>{cat}</label>
-            <input
-              type="text"
-              value={responses[cat] || ""}
-              onChange={(e) => handleResponseChange(cat, e.target.value)}
-              style={{
-                marginLeft: "10px",
-                padding: "8px",
-                borderRadius: "10px",
-                border: "none",
-                outline: "none",
-              }}
-            />
-          </div>
-        ))}
-      </div>
+          <button onClick={handleBuzz}
+            disabled={gameData.roundEnded || gameData.buzzedPlayers.includes(playerName)}
+            style={{
+              marginTop:"20px",
+              padding:"10px 20px",
+              borderRadius:"10px",
+              backgroundColor: gameData.buzzedPlayers.includes(playerName) ? "#888" : "#FF0000",
+              color:"#fff",
+              border:"none",
+              cursor:"pointer"
+            }}>🔔 Buzz</button>
 
-      <div style={{ marginTop: "30px", display: "flex", gap: "20px", justifyContent: "center" }}>
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={validateRound}
-          style={{
-            backgroundColor: "#00FF00",
-            color: "#000",
-            padding: "10px 20px",
-            borderRadius: "15px",
-            fontWeight: "bold",
-            border: "none",
-            cursor: "pointer",
-          }}
-        >
-          ✅ Valider
-        </motion.button>
+          {isHost && !gameData.started && gameData.players.length === gameData.numPlayers && (
+            <button onClick={startRound} style={{ marginTop:"20px", padding:"10px 20px", borderRadius:"10px", border:"none", backgroundColor:"#fff", color:"#ff007f", cursor:"pointer" }}>
+              🎮 Démarrer le round
+            </button>
+          )}
+          {isHost && !gameData.started && gameData.players.length < gameData.numPlayers && (
+            <p>⏳ En attente des joueurs...</p>
+          )}
 
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={() => handleBuzz(players[0])}
-          style={{
-            backgroundColor: "#FF0000",
-            color: "#fff",
-            padding: "10px 20px",
-            borderRadius: "15px",
-            fontWeight: "bold",
-            border: "none",
-            cursor: "pointer",
-          }}
-        >
-          🔔 Buzz
-        </motion.button>
-      </div>
+          {isHost && gameData.started && gameData.roundEnded && (
+            <button onClick={startRound} style={{ marginTop:"20px", padding:"10px 20px", borderRadius:"10px", border:"none", backgroundColor:"#00FF00", color:"#000", cursor:"pointer", fontWeight:"bold" }}>
+              🚀 Prochain round
+            </button>
+          )}
 
-      <h3 style={{ marginTop: "40px" }}>
-        Joueurs ayant buzzé : {buzzedPlayers.join(", ") || "Aucun"}
-      </h3>
+          <div style={{marginTop:"20px", fontWeight:"bold"}}>Points : {calculatePoints(playerName)}</div>
+        </>
+      ) : <p>Chargement de la partie...</p>}
     </div>
   );
 };

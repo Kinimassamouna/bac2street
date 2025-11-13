@@ -1,0 +1,25 @@
+[debug] [2025-11-12T21:55:41.574Z] ----------------------------------------------------------------------
+[debug] [2025-11-12T21:55:41.576Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\klhoe\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js init functions
+[debug] [2025-11-12T21:55:41.576Z] CLI Version:   14.24.2
+[debug] [2025-11-12T21:55:41.577Z] Platform:      win32
+[debug] [2025-11-12T21:55:41.577Z] Node Version:  v24.11.0
+[debug] [2025-11-12T21:55:41.577Z] Time:          Wed Nov 12 2025 22:55:41 GMT+0100 (heure normale d’Europe centrale)
+[debug] [2025-11-12T21:55:41.577Z] ----------------------------------------------------------------------
+[debug] 
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  C:\Users\klhoe\OneDrive\Documents\Travaux\bac2street
+
+[info] 
+=== Project Setup
+[info] 
+[info] First, let's associate this project directory with a Firebase project.
+[info] You can create multiple project aliases by running firebase use --add, 
+[info] 
